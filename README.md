@@ -1,5 +1,6 @@
-Minecraft 1.8 - 1.21.11 AFK Fishing bot
+Minecraft 1.8 - 1.21.11 minimal connector
 =============
+[Fork] This build was simplified to only handle connecting to a server with start/stop controls and a console. All fishing and automation features were removed.
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/22e2d15847fb4deaaed97efc3b755ebd)](https://www.codacy.com/gh/MrKinau/FishingBot/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=MrKinau/FishingBot&amp;utm_campaign=Badge_Grade)
 [![GitHub issues](https://img.shields.io/github/issues/MrKinau/FishingBot)](https://github.com/MrKinau/FishingBot/issues)
 [![GitHub](https://img.shields.io/github/license/MrKinau/FishingBot)](https://github.com/MrKinau/FishingBot/blob/master/LICENSE)
@@ -15,23 +16,13 @@ There's also a Docker image [available](docker).
 Visit the Wiki to see detailed instructions ([here](https://github.com/MrKinau/FishingBot/wiki#how-do-i-use-the-bot)).
 
 ## Commands
-You can use commands in the console with /\<command\> or as another player on the server writing "\<bot username\>, \<command\>" (replace \<bot username\> with the account username of your bot).
-The Command "/help" or "\<bot username\>, help" displays an overview of all commands.
-A list of all commands can be found in the wiki ([here](https://github.com/MrKinau/FishingBot/wiki/commands))
+The console only relays chat to the connected server and back. There are no in-game bot commands available in this fork.
 
 ## Features
-- Auto-Fishing Bot
-- Announces Loot/Level (also in Discord if wanted)
-- Check the bots level
-- Empty the bots inventory
-- Connect to every (relevant) minecraft version (realms included)
-- Offline and online mode
-- Use the bot console to chat
-- Setup Auto-Disconnect to reduce server-load
-- Automatically execute commands after connecting
-- GUI
-- Use Command-Line-Arguments (all options [here](https://github.com/MrKinau/FishingBot/wiki/command-line-options))
-- Want more? Feel free to request a feature [here](https://github.com/MrKinau/FishingBot/issues) or on [Discord](https://discord.gg/xHpCDYf)
+- Connect to any supported Minecraft version (realms included)
+- Basic offline/online authentication support
+- Console window for sending/receiving chat
+- Start and stop controls in the GUI
 
 ## Supported Versions
 - 1.8

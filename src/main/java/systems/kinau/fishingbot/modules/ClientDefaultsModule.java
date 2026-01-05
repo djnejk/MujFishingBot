@@ -27,7 +27,6 @@ import systems.kinau.fishingbot.event.play.JoinGameEvent;
 import systems.kinau.fishingbot.event.play.OpenWindowEvent;
 import systems.kinau.fishingbot.event.play.UpdateHealthEvent;
 import systems.kinau.fishingbot.event.play.UpdatePlayerListEvent;
-import systems.kinau.fishingbot.modules.command.executor.ConsoleCommandExecutor;
 import systems.kinau.fishingbot.network.protocol.NetworkHandler;
 import systems.kinau.fishingbot.network.protocol.ProtocolConstants;
 import systems.kinau.fishingbot.network.protocol.ProtocolState;
@@ -94,9 +93,7 @@ public class ClientDefaultsModule extends Module implements Listener {
 
             // Send start texts
             if (FishingBot.getInstance().getCurrentBot().getConfig().isStartTextEnabled()) {
-                FishingBot.getInstance().getCurrentBot().getConfig().getStartText().forEach(s -> {
-                    FishingBot.getInstance().getCurrentBot().runCommand(s, true, new ConsoleCommandExecutor());
-                });
+                FishingBot.getInstance().getCurrentBot().getConfig().getStartText().forEach(s -> FishingBot.getInstance().getCurrentBot().runCommand(s));
             }
 
             // Start position updates

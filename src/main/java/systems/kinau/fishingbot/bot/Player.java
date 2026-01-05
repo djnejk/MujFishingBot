@@ -5,10 +5,6 @@
 
 package systems.kinau.fishingbot.bot;
 
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.ArgumentType;
-import com.mojang.brigadier.context.CommandContextBuilder;
-import com.mojang.brigadier.context.ParsedArgument;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,7 +13,6 @@ import systems.kinau.fishingbot.event.EventHandler;
 import systems.kinau.fishingbot.event.Listener;
 import systems.kinau.fishingbot.event.configuration.ConfigurationStartEvent;
 import systems.kinau.fishingbot.event.custom.RespawnEvent;
-import systems.kinau.fishingbot.event.play.CommandsRegisteredEvent;
 import systems.kinau.fishingbot.event.play.InventoryCloseEvent;
 import systems.kinau.fishingbot.event.play.JoinGameEvent;
 import systems.kinau.fishingbot.event.play.LookChangeEvent;
@@ -29,8 +24,6 @@ import systems.kinau.fishingbot.event.play.UpdateHealthEvent;
 import systems.kinau.fishingbot.event.play.UpdateSlotEvent;
 import systems.kinau.fishingbot.event.play.UpdateWindowItemsEvent;
 import systems.kinau.fishingbot.modules.command.brigardier.argument.MessageArgumentType;
-import systems.kinau.fishingbot.modules.command.executor.CommandExecutor;
-import systems.kinau.fishingbot.modules.command.executor.ConsoleCommandExecutor;
 import systems.kinau.fishingbot.modules.ejection.EjectionModule;
 import systems.kinau.fishingbot.modules.fishing.AnnounceType;
 import systems.kinau.fishingbot.network.protocol.ProtocolConstants;
@@ -89,7 +82,6 @@ public class Player implements Listener {
     private final Map<Integer, Inventory> openedInventories = new HashMap<>();
     private Optional<CryptManager.MessageSignature> lastUsedSignature = Optional.empty();
     private int chatSessionIndex = 0;
-    private CommandDispatcher<CommandExecutor> mcCommandDispatcher;
 
     private UUID uuid;
 
@@ -222,7 +214,7 @@ public class Player implements Listener {
         if (FishingBot.getInstance().getCurrentBot().getConfig().isAutoCommandBeforeDeathEnabled()) {
             if (event.getHealth() < getHealth() && event.getHealth() <= FishingBot.getInstance().getCurrentBot().getConfig().getMinHealthBeforeDeath() && !isSentLowHealth()) {
                 for (String command : FishingBot.getInstance().getCurrentBot().getConfig().getAutoCommandBeforeDeath()) {
-                    FishingBot.getInstance().getCurrentBot().runCommand(command, true, new ConsoleCommandExecutor());
+                    FishingBot.getInstance().getCurrentBot().runCommand(command);
                 }
                 setSentLowHealth(true);
             } else if (isSentLowHealth() && event.getHealth() > FishingBot.getInstance().getCurrentBot().getConfig().getMinHealthBeforeDeath())
@@ -246,7 +238,7 @@ public class Player implements Listener {
             } catch (InterruptedException ignore) { }
             if (FishingBot.getInstance().getCurrentBot().getConfig().isAutoCommandOnRespawnEnabled()) {
                 for (String command : FishingBot.getInstance().getCurrentBot().getConfig().getAutoCommandOnRespawn()) {
-                    FishingBot.getInstance().getCurrentBot().runCommand(command, true, new ConsoleCommandExecutor());
+                    FishingBot.getInstance().getCurrentBot().runCommand(command);
                 }
             }
         }).start();
@@ -258,10 +250,6 @@ public class Player implements Listener {
     }
 
     @EventHandler
-    public void onCommandsRegistered(CommandsRegisteredEvent event) {
-        setMcCommandDispatcher(event.getCommandDispatcher());
-    }
-
     public void sneak(boolean sneaking) {
         int protocolId = FishingBot.getInstance().getCurrentBot().getServerProtocol();
         if (protocolId < ProtocolConstants.MC_1_21_6) {
@@ -280,13 +268,9 @@ public class Player implements Listener {
         FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutClientStatus(PacketOutClientStatus.Action.PERFORM_RESPAWN));
         if (FishingBot.getInstance().getCurrentBot().getServerProtocol() >= ProtocolConstants.MC_1_21_4)
             FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutPlayerLoaded());
-
-        if (FishingBot.getInstance().getCurrentBot().getConfig().isAutoSneak()) {
-            FishingBot.getInstance().getCurrentBot().getScheduler().schedule(() -> sneak(true), 250, TimeUnit.MILLISECONDS);
-        }
     }
 
-    public void sendMessage(String message, CommandExecutor commandExecutor) {
+    public void sendMessage(String message) {
         message = message.replace("%prefix%", FishingBot.PREFIX);
         for (String line : message.split("\n")) {
             if (FishingBot.getInstance().getCurrentBot().getServerProtocol() == ProtocolConstants.MC_1_8) {
@@ -296,38 +280,9 @@ public class Player implements Listener {
             } else if (FishingBot.getInstance().getCurrentBot().getServerProtocol() < ProtocolConstants.MC_1_19) {
                 FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChatMessage(line));
             } else {
-                if (line.startsWith("/"))
-                    executeChatCommand(line.substring(1), commandExecutor);
-                else
-                    FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChatMessage(line));
+                FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChatMessage(line));
             }
         }
-    }
-
-    private void executeChatCommand(String command, CommandExecutor commandExecutor) {
-        if (mcCommandDispatcher == null) {
-            if (FishingBot.getInstance().getCurrentBot().getServerProtocol() >= ProtocolConstants.MC_1_20_5)
-                FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutUnsignedChatCommand(command));
-            else
-                FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChatCommand(command));
-            return;
-        }
-
-        CommandContextBuilder<CommandExecutor> context = mcCommandDispatcher.parse(command, commandExecutor).getContext();
-        Map<String, Pair<ArgumentType<?>, ParsedArgument<CommandExecutor, ?>>> arguments = CommandUtils.getArguments(context);
-        boolean containsSignableArguments = arguments.values().stream().anyMatch(argument -> argument.getKey() instanceof MessageArgumentType);
-        if (!containsSignableArguments) {
-            if (FishingBot.getInstance().getCurrentBot().getServerProtocol() >= ProtocolConstants.MC_1_20_5)
-                FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutUnsignedChatCommand(command));
-            else
-                FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChatCommand(command));
-            return;
-        }
-        List<CryptManager.SignableArgument> signableArguments = arguments.entrySet().stream()
-                .filter(entry -> entry.getValue().getKey() instanceof MessageArgumentType)
-                .map(entry -> new CryptManager.SignableArgument(entry.getKey(), entry.getValue().getValue().getResult().toString()))
-                .collect(Collectors.toList());
-        FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChatCommand(command, signableArguments));
     }
 
     public void dropStack(short slot, short actionNumber) {
