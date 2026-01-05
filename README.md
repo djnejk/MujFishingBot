@@ -1,5 +1,6 @@
 Minecraft 1.8 - 1.21.11 AFK Fishing bot
 =============
+[Fork] This build was simplified to only handle connecting to a server with start/stop controls and a console. All fishing and automation features were removed.
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/22e2d15847fb4deaaed97efc3b755ebd)](https://www.codacy.com/gh/MrKinau/FishingBot/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=MrKinau/FishingBot&amp;utm_campaign=Badge_Grade)
 [![GitHub issues](https://img.shields.io/github/issues/MrKinau/FishingBot)](https://github.com/MrKinau/FishingBot/issues)
 [![GitHub](https://img.shields.io/github/license/MrKinau/FishingBot)](https://github.com/MrKinau/FishingBot/blob/master/LICENSE)

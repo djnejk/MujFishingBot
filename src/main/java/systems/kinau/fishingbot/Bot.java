@@ -12,7 +12,6 @@ import org.apache.commons.cli.CommandLine;
 import systems.kinau.fishingbot.auth.AuthData;
 import systems.kinau.fishingbot.auth.Authenticator;
 import systems.kinau.fishingbot.bot.Player;
-import systems.kinau.fishingbot.bot.loot.LootHistory;
 import systems.kinau.fishingbot.event.EventManager;
 import systems.kinau.fishingbot.event.custom.BotStopEvent;
 import systems.kinau.fishingbot.gui.Dialogs;
@@ -24,13 +23,7 @@ import systems.kinau.fishingbot.modules.ClientDefaultsModule;
 import systems.kinau.fishingbot.modules.HandshakeModule;
 import systems.kinau.fishingbot.modules.LoginModule;
 import systems.kinau.fishingbot.modules.ModuleManager;
-import systems.kinau.fishingbot.modules.command.ChatCommandModule;
-import systems.kinau.fishingbot.modules.command.CommandRegistry;
 import systems.kinau.fishingbot.modules.command.executor.CommandExecutor;
-import systems.kinau.fishingbot.modules.discord.DiscordModule;
-import systems.kinau.fishingbot.modules.ejection.EjectionModule;
-import systems.kinau.fishingbot.modules.fishing.FishingModule;
-import systems.kinau.fishingbot.modules.timer.TimerModule;
 import systems.kinau.fishingbot.network.mojangapi.MojangAPI;
 import systems.kinau.fishingbot.network.mojangapi.Realm;
 import systems.kinau.fishingbot.network.ping.ServerPinger;
@@ -47,7 +40,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.FileHandler;
 
@@ -63,20 +55,16 @@ public class Bot {
     @Getter @Setter private AuthData authData;
     @Getter @Setter private boolean wontConnect = false;
     @Getter         private ExecutorService commandsThread;
-    @Getter         private ScheduledExecutorService scheduler;
     @Getter         private boolean noGui;
     @Getter @Setter private int currentCodeOfConduct = 0;
 
     @Getter         private EventManager eventManager;
-    @Getter         private CommandRegistry commandRegistry;
     @Getter         private ModuleManager moduleManager;
 
     @Getter         private Player player;
 
     @Getter         private Socket socket;
     @Getter         private NetworkHandler net;
-
-    @Getter         private FishingModule fishingModule;
 
     @Getter         private MinecraftTranslations minecraftTranslations;
 
@@ -159,11 +147,6 @@ public class Bot {
         } else {
             FishingBot.getI18n().info("credentials-using-offline-mode", getConfig().getUserName());
             this.authData = new AuthData(null, UUIDUtils.createOfflineUUIDString(getConfig().getUserName()), getConfig().getUserName());
-        }
-
-        if (!cmdLine.hasOption("nogui")) {
-            FishingBot.getInstance().getMainGUIController().setImage(authData.getUuid());
-            FishingBot.getInstance().getMainGUIController().setAccountName(authData.getUsername());
         }
 
         FishingBot.getI18n().info("auth-username", authData.getUsername());
@@ -292,12 +275,6 @@ public class Bot {
         commandsThread.execute(() -> {
             if (getNet() == null)
                 return;
-            if (executeBotCommand && command.startsWith("/")) {
-                boolean executed = FishingBot.getInstance().getCurrentBot().getCommandRegistry().dispatchCommand(command, commandExecutor);
-                if (executed)
-                    return;
-            }
-
             getPlayer().sendMessage(command, commandExecutor);
         });
     }
@@ -316,16 +293,10 @@ public class Bot {
         return true;
     }
 
-    private void registerCommands() {
-        this.commandRegistry = new CommandRegistry();
-        commandRegistry.registerBotCommands();
-    }
 
     private void connect() {
         String serverName = getServerHost();
         int port = getServerPort();
-
-        LootHistory savedLootHistory = new LootHistory();
 
         do {
             try {
@@ -347,40 +318,15 @@ public class Bot {
 
                 this.net = new NetworkHandler();
                 this.commandsThread = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("command-executor-thread-%d").build());
-                this.scheduler = Executors.newScheduledThreadPool(2, new ThreadFactoryBuilder().setNameFormat("scheduler-thread-%d").build());
-
-                registerCommands();
-                if (FishingBot.getInstance().getMainGUIController() != null)
-                    getEventManager().registerListener(FishingBot.getInstance().getMainGUIController());
-
                 if (FishingBot.getInstance().getMainGUIController() != null && !getEventManager().isRegistered(FishingBot.getInstance().getMainGUIController()))
                     getEventManager().registerListener(FishingBot.getInstance().getMainGUIController());
-
-                // enable required modules
 
                 getModuleManager().enableModule(new HandshakeModule(serverName, port));
                 getModuleManager().enableModule(new LoginModule(getAuthData().getUsername()));
                 getModuleManager().enableModule(new ClientDefaultsModule());
-                getModuleManager().enableModule(this.fishingModule = new FishingModule(savedLootHistory));
                 getModuleManager().enableModule(new ChatProxyModule());
 
-                if (getConfig().isStartTextEnabled())
-                    getModuleManager().enableModule(new ChatCommandModule());
-
-                if (getConfig().isWebHookEnabled())
-                    getModuleManager().enableModule(new DiscordModule());
-
-                if (getConfig().isAutoLootEjectionEnabled())
-                    getModuleManager().enableModule(new EjectionModule());
-
-                if (getConfig().isTimerEnabled())
-                    getModuleManager().enableModule(new TimerModule());
-
-                // init player
-
                 this.player = new Player();
-
-                // add shutdown hook
 
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                     try {
@@ -388,14 +334,10 @@ public class Bot {
                             socket.close();
                         if (commandsThread != null && !commandsThread.isTerminated() && !commandsThread.isShutdown())
                             commandsThread.shutdownNow();
-                        if (scheduler != null && !scheduler.isTerminated() && !scheduler.isShutdown())
-                            scheduler.shutdownNow();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
                 }));
-
-                // game loop (for receiving packets)
 
                 while (running) {
                     try {
@@ -423,31 +365,27 @@ public class Bot {
                     getEventManager().unregisterListener(getPlayer());
                 if (commandsThread != null && !commandsThread.isShutdown())
                     commandsThread.shutdownNow();
-                if (scheduler != null && !scheduler.isTerminated() && !scheduler.isShutdown())
-                    scheduler.shutdownNow();
                 getEventManager().getRegisteredListener().clear();
                 getEventManager().getClassToInstanceMapping().clear();
-                FishingModule fishingModule = getModuleManager().getModule(FishingModule.class);
-                if (fishingModule != null)
-                    savedLootHistory = fishingModule.getLootHistory();
                 getModuleManager().disableAll();
                 this.socket = null;
                 this.net = null;
                 this.player = null;
-            }
-            if (getConfig().isAutoReconnect() && !isPreventReconnect()) {
-                FishingBot.getI18n().info("bot-automatic-reconnect", String.valueOf(getConfig().getAutoReconnectTime()));
 
-                try {
-                    Thread.sleep(getConfig().getAutoReconnectTime() * 1000);
-                } catch (InterruptedException ignore) { }
+                if (getConfig().isAutoReconnect() && !isPreventReconnect()) {
+                    FishingBot.getI18n().info("bot-automatic-reconnect", String.valueOf(getConfig().getAutoReconnectTime()));
 
-                if (getAuthData() == null) {
-                    if (getConfig().isOnlineMode())
-                        authenticate();
-                    else {
-                        FishingBot.getI18n().info("credentials-using-offline-mode", getConfig().getUserName());
-                        authData = new AuthData(null, UUIDUtils.createOfflineUUIDString(getConfig().getUserName()), getConfig().getUserName());
+                    try {
+                        Thread.sleep(getConfig().getAutoReconnectTime() * 1000);
+                    } catch (InterruptedException ignore) { }
+
+                    if (getAuthData() == null) {
+                        if (getConfig().isOnlineMode())
+                            authenticate();
+                        else {
+                            FishingBot.getI18n().info("credentials-using-offline-mode", getConfig().getUserName());
+                            authData = new AuthData(null, UUIDUtils.createOfflineUUIDString(getConfig().getUserName()), getConfig().getUserName());
+                        }
                     }
                 }
             }
@@ -455,7 +393,6 @@ public class Bot {
         FishingBot.getInstance().setCurrentBot(null);
         if (FishingBot.getInstance().getMainGUIController() != null) {
             FishingBot.getInstance().getMainGUIController().updateStartStop();
-            FishingBot.getInstance().getMainGUIController().updatePlayPaused();
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ignore) { }
