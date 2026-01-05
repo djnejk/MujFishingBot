@@ -40,6 +40,7 @@ import systems.kinau.fishingbot.network.protocol.play.PacketOutChunkBatchReceive
 import systems.kinau.fishingbot.network.protocol.play.PacketOutConfirmTransaction;
 import systems.kinau.fishingbot.network.protocol.play.PacketOutPlayerLoaded;
 import systems.kinau.fishingbot.network.protocol.play.PacketOutPosLook;
+import systems.kinau.fishingbot.network.protocol.play.PacketOutPosition;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -49,6 +50,7 @@ import java.util.UUID;
 public class ClientDefaultsModule extends Module implements Listener {
 
     private Thread positionThread;
+    private Thread jumpThread;
     private boolean joined;
     private Set<UUID> onlinePlayers = new HashSet<>();
 
@@ -61,6 +63,8 @@ public class ClientDefaultsModule extends Module implements Listener {
     public void onDisable() {
         if (getPositionThread() != null)
             getPositionThread().interrupt();
+        if (getJumpThread() != null)
+            getJumpThread().interrupt();
         FishingBot.getInstance().getCurrentBot().getEventManager().unregisterListener(this);
     }
 
@@ -68,6 +72,10 @@ public class ClientDefaultsModule extends Module implements Listener {
     public void onDisconnect(DisconnectEvent event) {
         FishingBot.getI18n().info("module-client-disconnected", event.getDisconnectMessage());
         FishingBot.getInstance().getCurrentBot().setRunning(false);
+        if (getPositionThread() != null)
+            getPositionThread().interrupt();
+        if (getJumpThread() != null)
+            getJumpThread().interrupt();
         onlinePlayers.clear();
     }
 
@@ -101,6 +109,7 @@ public class ClientDefaultsModule extends Module implements Listener {
 
             // Start position updates
             startPositionUpdate(FishingBot.getInstance().getCurrentBot().getNet());
+            startJumpLoop(FishingBot.getInstance().getCurrentBot().getNet());
         }).start();
     }
 
@@ -168,6 +177,8 @@ public class ClientDefaultsModule extends Module implements Listener {
     public void onConfigurationStart(ConfigurationStartEvent e) {
         if (positionThread != null)
             positionThread.interrupt();
+        if (jumpThread != null)
+            jumpThread.interrupt();
     }
 
     @EventHandler
@@ -200,5 +211,37 @@ public class ClientDefaultsModule extends Module implements Listener {
     @EventHandler
     public void onChunkBatchFinished(ChunkBatchFinishedEvent event) {
         FishingBot.getInstance().getCurrentBot().getNet().sendPacket(new PacketOutChunkBatchReceived(20));
+    }
+
+    private void startJumpLoop(NetworkHandler networkHandler) {
+        if (jumpThread != null)
+            jumpThread.interrupt();
+        jumpThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                performJump(networkHandler);
+                try { Thread.sleep(1000); } catch (InterruptedException e) { break; }
+            }
+        });
+        jumpThread.setName("jumpThread");
+        jumpThread.start();
+    }
+
+    private void performJump(NetworkHandler networkHandler) {
+        if (networkHandler == null || networkHandler.getState() != ProtocolState.PLAY)
+            return;
+
+        Player player = FishingBot.getInstance().getCurrentBot().getPlayer();
+        double x = player.getX();
+        double y = player.getY();
+        double z = player.getZ();
+
+        networkHandler.sendPacket(new PacketOutPosition(x, y + 0.42, z, false, true));
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        networkHandler.sendPacket(new PacketOutPosition(x, y, z, true, true));
     }
 }
