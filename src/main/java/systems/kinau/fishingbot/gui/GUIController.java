@@ -9,12 +9,16 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import lombok.Getter;
 import systems.kinau.fishingbot.FishingBot;
-import systems.kinau.fishingbot.modules.command.executor.ConsoleCommandExecutor;
+import systems.kinau.fishingbot.event.Listener;
 
+import java.awt.Desktop;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GUIController {
+public class GUIController implements Listener {
 
     @FXML private TextField commandlineTextField;
     @FXML private Button startStopButton;
@@ -89,6 +93,20 @@ public class GUIController {
 
     private void runCommand(String text) {
         if (FishingBot.getInstance().getCurrentBot() == null) return;
-        FishingBot.getInstance().getCurrentBot().runCommand(text, true, new ConsoleCommandExecutor());
+        FishingBot.getInstance().getCurrentBot().runCommand(text);
+    }
+
+    public void openCodeOfConduct(String codeOfConduct, java.util.function.Consumer<Boolean> acceptCallback, java.util.function.Consumer<Boolean> saveCallback) {
+        Dialogs.showCodeOfConduct(startStopButton.getScene().getWindow() == null ? null : (javafx.stage.Stage) startStopButton.getScene().getWindow(), codeOfConduct, acceptCallback, saveCallback);
+    }
+
+    public static void openWebpage(String url) {
+        if (!Desktop.isDesktopSupported()) {
+            return;
+        }
+        try {
+            Desktop.getDesktop().browse(new URI(url));
+        } catch (IOException | URISyntaxException ignored) {
+        }
     }
 }

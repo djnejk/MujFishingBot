@@ -23,7 +23,6 @@ import systems.kinau.fishingbot.modules.ClientDefaultsModule;
 import systems.kinau.fishingbot.modules.HandshakeModule;
 import systems.kinau.fishingbot.modules.LoginModule;
 import systems.kinau.fishingbot.modules.ModuleManager;
-import systems.kinau.fishingbot.modules.command.executor.CommandExecutor;
 import systems.kinau.fishingbot.network.mojangapi.MojangAPI;
 import systems.kinau.fishingbot.network.mojangapi.Realm;
 import systems.kinau.fishingbot.network.ping.ServerPinger;
@@ -271,11 +270,11 @@ public class Bot {
         connect();
     }
 
-    public void runCommand(String command, boolean executeBotCommand, CommandExecutor commandExecutor) {
+    public void runCommand(String command) {
         commandsThread.execute(() -> {
             if (getNet() == null)
                 return;
-            getPlayer().sendMessage(command, commandExecutor);
+            getPlayer().sendMessage(command);
         });
     }
 
